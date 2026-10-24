@@ -1,5 +1,7 @@
 # 📂 Directory Indexer
 
+> 🎓 Project for **CS 265 (Advanced Programming Tools and Techniques)** at **Drexel University**
+
 A Bash script that walks through a whole folder tree and drops an `index.json` into every directory, listing what's inside: regular files, subfolders, and anything you've marked as "special." You can also hide things you don't want listed.
 
 I think of it like cleaning up before guests come over. First I walk through every room and note what I want hidden (say, the PS5 before the kids show up). Then I go room by room again, put the special stuff in its own drawer and everything else in normal piles, and figure out how far each room is from the front door.
