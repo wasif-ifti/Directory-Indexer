@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# so the idea is guests are coming and i need to clean up fast. I go through  all the rooms first and collect what things I explicitly want to hide first, let say I want to hide my PS5 cause kids are coming. Then again i go to each room and see what is left short them and put special item in special drawer and rest in normal piles. Then I would figure out how far each room is from front door and then i just stript the starting adress from the current room adress and count slashes.
+
+
+if [[ -z "$1" ]]
+then
+	echo "error"
+	exit 1
+fi
+
+if [[ ! -d "$1" ]]
+then
+	echo "error"
+	exit 1
+fi
+
+starting_point=$(realpath "$1")
+IFS=$'\n'
+
+all_dirs=($(find "$starting_point" -type d | sort -r))
+
+banned=()
+for current_directory in "${all_dirs[@]}"
+do
+	if [[ -f "$current_directory/_blacklist" ]]
+	then
+		for line in $(cat "$current_directory/_blacklist")
+		do
+			banned+=("$current_directory:$line")
+		done
+	fi
+done
+
+for current_directory in "${all_dirs[@]}"
+do
+
+	just_files=()
+	regular_directory=()
+	special_files=()
+	special_directories=()
+	special_array=()
+
+	if [[ -f "$current_directory/_special" ]]
+	then
+		for line in $(cat "$current_directory/_special")
+		do
+			special_array+=("$line")
+		done
+	fi
+
+	all_items=($(find "$current_directory" -maxdepth 1 ! -path "$current_directory" | sort))
+
+	for each_item in "${all_items[@]}"
+	do
+		name=$(basename "$each_item")
+
+		skip=0
+		for entry in "${banned[@]}"
+		do
+			if [[ "$entry" == "$current_directory:$name" ]]
+			then
+				skip=1
+			fi
+		done
+
+		if [[ "$name" == "index.json" || "$name" == "_blacklist" || "$name" == "_special" ]]
+		then
+			skip=1
+		fi
+
+		if [[ $skip -eq 1 ]]
+		then
+			continue
+		fi
+
+		is_special=0
+		for x in "${special_array[@]}"
+		do
+			if [[ "$name" == "$x" ]]
+			then
+				is_special=1
+			fi
+		done
+
+		if [[ -f "$each_item" ]]
+		then
+			if [[ $is_special -eq 1 ]]
+			then
+				special_files+=("$name")
+			else
+				just_files+=("$name")
+			fi
+		elif [[ -d "$each_item" ]]
+		then
+			if [[ $is_special -eq 1 ]]
+			then
+				special_directories+=("$name")
+			else
+				regular_directory+=("$name")
+			fi
+		fi
+
+	done
+
+	remaining="${current_directory#$starting_point}"
+	depth=$(echo "$remaining" | grep -o "/" | wc -l)
+
+	if [[ $depth -eq 0 ]]
+	then
+		back_to_start="."
+	else
+		back_to_start=".."
+		for x in $(seq 2 $depth)
+		do
+			back_to_start="$back_to_start/.."
+		done
+	fi
+
+	json="{"$'\n'
+	json="$json  \"files\": ["
+	first=1
+	for x in "${just_files[@]}"
+	do
+		if [[ $first -eq 0 ]]
+		then
+			json="$json, "
+		fi
+		json="$json\"$x\""
+		first=0
+	done
+	json="$json],"$'\n'
+
+	json="$json  \"directories\": ["
+	first=1
+	for x in "${regular_directory[@]}"
+	do
+		if [[ $first -eq 0 ]]
+		then
+			json="$json, "
+		fi
+		json="$json\"$x\""
+		first=0
+	done
+	json="$json],"$'\n'
+
+	json="$json  \"special_files\": ["
+	first=1
+	for x in "${special_files[@]}"
+	do
+		if [[ $first -eq 0 ]]
+		then
+			json="$json, "
+		fi
+		json="$json\"$x\""
+		first=0
+	done
+	json="$json],"$'\n'
+
+	json="$json  \"special_directories\": ["
+	first=1
+	for x in "${special_directories[@]}"
+	do
+		if [[ $first -eq 0 ]]
+		then
+			json="$json, "
+		fi
+		json="$json\"$x\""
+		first=0
+	done
+	json="$json],"$'\n'
+
+	json="$json  \"outer\": \"$back_to_start\""$'\n'
+	json="$json}"
+
+	echo "$json" > "$current_directory/index.json"
+
+done
